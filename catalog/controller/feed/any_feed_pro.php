@@ -115,7 +115,7 @@ class ControllerFeedAnyFeedPro extends Controller {
 		return $root_tag;
 	}
 
-	public function index() {
+	public function index() {            
 		$this->load->model('feed/any_feed_pro');
 		$this->load->model('localisation/currency');
 		if (defined('CLI_INITIATED')) {
@@ -133,14 +133,23 @@ class ControllerFeedAnyFeedPro extends Controller {
 		$settings = json_decode($profile['settings'], true);
 		$fields =  json_decode(html_entity_decode($profile['fields']), true);
 
-		$settings['root_tag'] = $this->validateRootTag($settings['root_tag']);
+                if(!empty($settings['root_tag']))
+                    $settings['root_tag'] = $this->validateRootTag($settings['root_tag']);
+                else
+                    $settings['root_tag'] = '';
 
-		$this->currency_id = $settings['currency'];
-
+                if(empty($settings['currency']) || (!empty($settings['currency']) && ($settings['currency'] == "ALL")))
+                    $this->currency_id = $this->config->get('config_currency');
+                else
+                    $this->currency_id = $settings['currency'];
+                
 		if(empty($fields)) {
 			$fields = array();
-		}
+		}                
 
+                if(empty($settings['enable']))
+                    die("Feed are disabled. Please enable the feed first.");
+                
 		if(isset($settings['enable']) &&  $settings['enable'] == 1) {
 			//check the cache
 			if ($this->cron || (isset($settings['cache']) && $settings['cache'] === 'Yes')) {
@@ -193,7 +202,22 @@ class ControllerFeedAnyFeedPro extends Controller {
 			$data['limit'] = $this->request->get['numResults'];
 		}
 		$this->stock_statuses = $this->model_feed_any_feed_pro->getStockStatus();
-		$products = $this->model_feed_any_feed_pro->getProducts($data, $settings['language']);
+
+//		$products = $this->model_feed_any_feed_pro->getProducts($data, $settings['language']);
+                $products = array();
+                if(empty($settings['language'])) {
+                    $this->load->model('localisation/language');
+                    $languages = $this->model_localisation_language->getLanguages();
+                    foreach($languages as $language) {
+                        $getProducts = $this->model_feed_any_feed_pro->getProducts($data, $language['language_id']);
+                        foreach($getProducts as $tempProduct) {
+                             $products[$tempProduct["product_id"]] = $tempProduct;
+                        }
+                    }
+                }else {
+                    $products = $this->model_feed_any_feed_pro->getProducts($data, $settings['language']);
+                }                
+                
 		//$this->max_cat = $this->model_feed_any_feed_pro->getMaxCategories();
 		$this->max_cat = 1;
 		$this->max_opt_names = $this->model_feed_any_feed_pro->getProductOptionNames();
@@ -344,10 +368,21 @@ class ControllerFeedAnyFeedPro extends Controller {
 			if (isset($product['stock_status_id']) && isset($product['stock_status_id']) && $product['stock_status_id'] == $ss['stock_status_id']) {
 				$product['stock_status_id'] = $ss['name'];
 			}
-		}
-
+		}                
+                
 		$product['price'] = $this->tax->calculate($product['price'], $product['tax_class_id'], $this->config->get('config_tax'));
-
+                
+                /*
+                 * CUSTOM: START WORK TO CONVERT PRICE
+                 */
+                $storeCurrency = $this->config->get('config_currency');                    
+                $selectedCurrency = $this->currency_id;
+                $product['price'] = $this->currency->convert($product['price'], $storeCurrency, $selectedCurrency);
+                $product['price'] = round($product['price'], 2);
+                /*
+                 * CUSTOM: END WORK TO CONVERT PRICE
+                 */
+                
 		$product['keyword'] = $this->model_feed_any_feed_pro->getSeoKeyword($product['product_id']);
 		$product['url'] = html_entity_decode($this->url->link('product/product', 'product_id=' . $product['product_id'], 'SSL'));
 
@@ -356,6 +391,7 @@ class ControllerFeedAnyFeedPro extends Controller {
 		} else {
 			$product['image'] = '';
 		}
+
 		return array('product' => $product, 'fields' => $fields);
 	}
 
@@ -407,15 +443,19 @@ class ControllerFeedAnyFeedPro extends Controller {
 						$any_feed_val = $this->getProdAnyFeedField($product['product_id'], $fieldName, array_values($settings['store'])[0]);
 						$prod_val = $any_feed_val ? $any_feed_val : $product[$this->input_fields[$key]];
 					}elseif($key == 'URL' && array_keys($settings['store'])[0] !== 'Default'){
-						$new_url = $this->getStoreURL($product['product_id'], array_values($settings['store'])[0]);
-						$prod_val =  $new_url ? $new_url . 'index.php?route=product/product&product_id=' . $product['product_id'] : '';
+                                            $new_url = $this->getStoreURL($product['product_id'], array_values($settings['store'])[0]);
+                                            
+                                            // @CUSTOM: Following code added to make URL according to SEO
+                                            $prod_val = $new_url . $product["keyword"];
+//                                            $prod_val =  $new_url ? $new_url . 'index.php?route=product/product&product_id=' . $product['product_id'] : '';
 					}elseif($key == 'Image' && array_keys($settings['store'])[0] !== 'Default'){
 						$new_url = $this->getStoreURL($product['product_id'], array_values($settings['store'])[0]);
 						$prod_val = str_replace(HTTP_SERVER, $new_url, $product['image']);
 					}else{
 						$prod_val = $this->getProdField($product, $key, $field_settings);
 						$prod_val = str_replace('&#039;', "'", $prod_val);
-					}
+					}                                                                               
+                                        
 
 					if (isset($field_settings['Strip HTML']['value'])) {
 						$prod_val = strip_tags(html_entity_decode($prod_val));
@@ -439,7 +479,11 @@ class ControllerFeedAnyFeedPro extends Controller {
 					if (isset($field_settings['Unit']) && is_float($prod_val)) {
 						$pre = '';
 						$post = '';
-						$prod_val = preg_replace('/[^0-9\.,]/', '', $this->currency->format($prod_val, $settings['currency']));
+                                                if($settings['currency'] == "ALL")
+                                                    $prod_val = preg_replace('/[^0-9\.,]/', '', $this->currency->format($prod_val, $this->currency_id));
+                                                else
+                                                    $prod_val = preg_replace('/[^0-9\.,]/', '', $this->currency->format($prod_val, $settings['currency']));
+                                                
 						if (!empty($field_settings['Unit']['value'])) {
 							$unit_val = $field_settings['Unit']['value'];
 						} else {
@@ -503,7 +547,10 @@ class ControllerFeedAnyFeedPro extends Controller {
 						if (isset($field_settings['Unit']) && is_float($prod_val)) {
 							$pre = '';
 							$post = '';
-							$prod_val = preg_replace('/[^0-9\.,]/', '', $this->currency->format($prod_val, $settings['currency']));
+                                                        if($settings['currency'] == "ALL")
+                                                            $prod_val = preg_replace('/[^0-9\.,]/', '', $this->currency->format($prod_val, $this->currency_id));
+                                                        else
+                                                            $prod_val = preg_replace('/[^0-9\.,]/', '', $this->currency->format($prod_val, $settings['currency']));
 							if (!empty($field_settings['Unit']['value'])) {
 								$unit_val = $field_settings['Unit']['value'];
 							} else {
@@ -821,12 +868,21 @@ class ControllerFeedAnyFeedPro extends Controller {
 				$prod_val = $product[$rule['rule_export']];
 				break;
 			case 'math':
+                            if($settings['currency'] == "ALL") {
 				if (in_array($this->input_fields[$key], array('price', 'special_price'))) {
+					$prod_val = $this->applyMath($product['raw_'.$this->input_fields[$key]], $rule['math_operator'], $rule['rule_export']);
+					$prod_val = $this->currency->format($prod_val, $this->currency_id);
+				}
+				else
+					$prod_val = $this->applyMath($prod_val, $rule['math_operator'], $rule['rule_export']);
+                            }else {
+ 				if (in_array($this->input_fields[$key], array('price', 'special_price'))) {
 					$prod_val = $this->applyMath($product['raw_'.$this->input_fields[$key]], $rule['math_operator'], $rule['rule_export']);
 					$prod_val = $this->currency->format($prod_val, $settings['currency']);
 				}
 				else
 					$prod_val = $this->applyMath($prod_val, $rule['math_operator'], $rule['rule_export']);
+                            }
 				break;
 			case 'append':
 				$prod_val = $prod_val . $rule['rule_export'];

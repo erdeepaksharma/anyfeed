@@ -6,51 +6,6 @@
 */
 ?>
 
-<style type="text/css">
-    .name-label {
-        font-size: 22px;
-        font-weight: 600;
-        color: #72aa00;
-    }
-    
-    .accordiona {
-        background-color: #eee;
-        color: #444;
-        cursor: pointer;
-        padding: 10px;
-        width: 100%;
-        //border: none;
-        text-align: left;
-        outline: none;
-        font-size: 12px;
-        transition: 0.4s;
-        border-bottom-style: 1px solid #ccc;
-    }
-
-    .activea, .accordiona:hover {
-        background-color: #ccc; 
-    }
-
-    .panela {
-        padding: 0 18px;
-        display: none;
-        background-color: white;
-        overflow: hidden;
-    }
-    
-    .accordiona:after {
-        content: '\02795'; /* Unicode character for "plus" sign (+) */
-        font-size: 13px;
-        color: #777;
-        float: right;
-        margin-left: 5px;
-    }
-
-    .activea:after {
-        content: "\2796"; /* Unicode character for "minus" sign (-) */
-    }
-</style>
-
 <?php echo $header; ?><?php echo $menu; ?>
 
 <div id="content">
@@ -68,7 +23,6 @@
 	</ul>
 	<div class="buttons pull-right">
 	    <button id="create-feed" class="button btn btn-primary"><?php echo $entry_add_feed; ?></button>
-            <button class="button btn btn-primary" onclick="window.location.href = 'index.php?route=feed/any_feed_pro/manageProfile&token=<?php echo $token ?>'" style="background-color: coral; border-color: coral;"><?php echo "Manage Profiles"; ?></button>
 	    <button onclick="return saveFeedsAjax();" class="button btn btn-success"><?php echo $button_save; ?></button>
 	    <button onclick="location = '<?php echo $cancel; ?>';" class="button btn btn-danger"><?php echo $button_cancel; ?></button>
 	</div>
@@ -127,7 +81,7 @@
 						<?php } ?>
 						<!-- Field settings specific to the one field -->
 						<?php foreach($src_fields as $setting_text => $field_settings) {?>
-							<?php if($setting_text != 'prefix') {?>
+							<?php if($setting_text != 'prefix' && $field_settings['name'] !== 'price_unit') {?>
 								<label for="<?php echo $field_settings['name']; ?>"><?php echo $setting_text; ?>: </label>
 
 								<?php if($field_settings['type'] == 'text') {?>
@@ -206,7 +160,7 @@
 			</div>
 			<div class="clear"></div>
 		</div>
-                                        <form action="<?php echo $action; ?>" method="post" enctype="multipart/form-data" id="form" onclick="return false;">
+		<form action="<?php echo $action; ?>" method="post" enctype="multipart/form-data" id="form">
 			<div id="content_holder" class="field_content">
 			</div>
 			<div id="dialog-form" title="Create new feed">
@@ -402,7 +356,7 @@ function saveFeedsAjax() {
 		success: function(result) {
 			if (result) {
 				$('.breadcrumb').after('<div class="alert alert-success success">Feeds Saved Succesfully! Use the link in Feed Settings to view each feed.</div>');
-				setTimeout(function(){ $('.success').fadeOut() }, 10000);                                
+				setTimeout(function(){ $('.success').fadeOut() }, 10000);
 			}
 		},
 		beforeSend: function showSpinner() {
@@ -413,7 +367,6 @@ function saveFeedsAjax() {
 			$('input[sort_order]').remove();
       $('#ajaxSpinner').hide();
       $('#ajaxFade').hide();
-      window.location.href = 'index.php?route=feed/any_feed_pro&token=<?php echo $token ?>';
     },
 	});
 }
@@ -426,10 +379,10 @@ function updateText(el) {
 		var action = el.value;
 		parent = $(el).parents('.portlet');
 	}
-	if(action == 'CSV') {
+	if(action == 'CSV' || action == 'TXT') {
 		$(parent).find('.XML').hide();
 		$(parent).find('.CSV').show();
-	} else {
+	} else if(action == 'XML') {
 		$(parent).find('.CSV').hide();
 		$(parent).find('.XML').show();
 	}
@@ -720,7 +673,7 @@ $(document).ready(function() {
     function bindRemoveFieldButton() {
     	$( ".field_content  .fa-times" ).unbind('click').on('click', function() {
 			$( this ).closest('.portlet').remove();
-        });
+		});
     }
 
 	function addedFeed() {
@@ -770,6 +723,7 @@ $(document).ready(function() {
 
 		//dialog box for deleting profiles
 		$( ".remove" ).unbind("click").on("click", function() {
+
 			//grab the current feed being removed
 			item = this;
 		    $( "#dialog-confirm" ).dialog({
@@ -782,9 +736,8 @@ $(document).ready(function() {
 	 		    		//remove the feed from the current feed list
 	 		    		profile = encodedName($( item ).closest(".feed-header").find(".remove:first").html());
 	 		    		delete existingFeeds[encodedName(profile)];
-					$( item ).parents(".field_content:first").remove();
+						$( item ).parents(".field_content:first").remove();
 			        	$( this ).dialog( "close" );
-                                        saveFeedsAjax();
 			        },
 			        Back: function() {
 			        	$( this ).dialog( "close" );
@@ -843,22 +796,15 @@ $(document).ready(function() {
 	}
 
 	function createFeed (profile, name, preset, callback) {
-                if(!name)
-                    return;
-                
 		var json_url = 'index.php?route=feed/any_feed_pro/getProfile&feed='+ profile +'&preset=' + preset + '&token=<?php echo $token ?>';
 		var json = $.getJSON(json_url, function(data) {
 		<!-- Feed URL -->
 		match = '/admin/';
 		url = document.URL;
 		url = url.substring(0, url.indexOf(match));
-		url += "/index.php?route=feed/any_feed_pro&name=" + encodedName(name);                                
+		url += "/index.php?route=feed/any_feed_pro&name=" + encodedName(name);
 
-
-		var copyurl = 'index.php?route=feed/any_feed_pro/duplicate&name=' + encodedName(name) + '&token=<?php echo $token ?>';
-		var feedSettingurl = 'index.php?route=feed/any_feed_pro/editFeedSettings&name=' + encodedName(name) + '&token=<?php echo $token ?>';
-
-		html = '<button class="accordiona"><span class="name-label"><i class="fa fa-rss-square" aria-hidden="true"></i>&nbsp;&nbsp;' + prettyName(name) + '</span></button><div class="field_content panela" style="width: 100%;">';
+		html = '<div class="field_content">';
 			addedDefaults = false;
 			 $.each(data, function(key, val) {
 					switch(key) {
@@ -866,11 +812,7 @@ $(document).ready(function() {
 							html += '<div class="portlet static">';
 							html += '<div class="feed-header">';
 
-							html += "<a class='feed_url feed_header_buttons' name='feed_name_replace[settings][feed_url]' href='javascript:void(0)' onclick=\"copyFile('"+ feedSettingurl +"')\">";
-                                                        html += "<i class='fa fa-cogs fa-lg' aria-hidden='true'></i> Settings</a>";
-							html += "<a class='feed_url feed_header_buttons' name='feed_name_replace[settings][feed_url]' href='javascript:void(0)' onclick=\"copyFile('"+ copyurl +"')\">";
-                                                        html += "<i class='fa fa-clone fa-lg' aria-hidden='true'></i> Duplicate</a>";
-							html += "<a class='feed_url feed_header_buttons' name='feed_name_replace[settings][feed_url]' href='javascript:void(0)' onclick=\"exportFile('"+ url +"')\">";
+							html += "<a class='feed_url feed_header_buttons' name='feed_name_replace[settings][feed_url]' href='" + url + "' target='_blank'>";
 							html += "<i class='fa fa-external-link fa-lg'></i> Export Feed</a>";
 							html += "<span class='get_feed_modal feed_header_buttons' name='feed_name_replace[settings][feed_get_url]' data-url='" + url + "'>";
 							html += "<i class='fa fa-external-link fa-lg'></i> Get Feed URL </span>";
@@ -880,18 +822,18 @@ $(document).ready(function() {
 							html += '</div>';
 
 							html += '<div class="feed-title">';
-                                                        html += '<h2 class="profile_name hover">' + prettyName(name) + '</h2>';
+							html += '<h2 class="profile_name hover">' + prettyName(name) + '</h2>';
 							html += '</div>';
 
 							break;
 						case 'settings':
 							settings = JSON.parse(val);
-							html += '<div class="portlet-header feed-settings ui-corner-all">Feed Settings <span class="cache-info">(Cache is <span class="cache-status"></span>)<span style="padding-left:15%;">[Click on "Settings" button to edit this feed]</span></span></div><div class="portlet-content"><table class="settings">';
+							html += '<div class="portlet-header feed-settings ui-corner-all">Feed Settings <span class="cache-info">(Cache is <span class="cache-status"></span>)</span></div><div class="portlet-content"><table class="settings">';
 
 							<!-- Feed Enable/Disable -->
 							html += "<tr>";
-                                                        html += "<td><label class='enable' for='enable'>Feed Status: </label></td>";
-							html += "<td><select class='settings_enable settings_" + encodedName(name) + "' name='feed_name_replace[settings][enable]'>";
+                            html += "<td><label class='enable' for='enable'>Feed Status: </label></td>";
+							html += "<td><select onchange='toggleFeedStatus(this);saveFeedsAjax();' class='settings_enable settings_" + encodedName(name) + "' name='feed_name_replace[settings][enable]'>";
 							var feed_statuses = [
 								{'text': 'Enabled', 'val': 1},
 								{'text': 'Disabled', 'val': 0},
@@ -907,8 +849,8 @@ $(document).ready(function() {
 
 							<!-- Output Disabled products -->
 							html += "<tr>";
-                                                        html += "<td><label class='export_disabled' for='enable'>Export Disabled Products: </label></td>";
-							html += "<td><select class='settings_export_disabled_products settings_" + encodedName(name) + "' name='feed_name_replace[settings][export_disabled_products]'>";
+                            html += "<td><label class='export_disabled' for='enable'>Export Disabled Products: </label></td>";
+							html += "<td><select onchange='saveFeedsAjax();' class='settings_export_disabled_products settings_" + encodedName(name) + "' name='feed_name_replace[settings][export_disabled_products]'>";
 							var export_disabled_options = [
 								{'text': 'Yes', 'val': 1},
 								{'text': 'No', 'val': 0},
@@ -923,9 +865,8 @@ $(document).ready(function() {
 							html += "</tr>";
 
 							<!-- Feed Output Type -->
-                                                        html += "<tr>";
 							html += "<td><label for='type'>Feed Type: </label></td>";
-							html += "<td><select class='settings_feedtype settings_" + encodedName(name) + "' name='feed_name_replace[settings][type]'>";
+							html += "<td><select class='settings_feedtype settings_" + encodedName(name) + "' name='feed_name_replace[settings][type]' onchange='updateText(this);saveFeedsAjax();'>";
 							var types = ['CSV', 'XML', 'TXT'];
 							for (index = 0; index < types.length; ++index) {
 								html += "<option value='"+ types[index] +"'";
@@ -934,14 +875,14 @@ $(document).ready(function() {
 								}
 								html += ">"+types[index]+"</option>";
 							}
-							html += "</select></td></tr>";
+							html += "</select></td>";
 
 						    if(!addedDefaults) {
 
 								<!-- CSV Delimiter -->
 								html += "<tr>";
 								html += "<td><label class='CSV' for='delimiter'>Delimiter: </label></td>";
-								html += "<td><select class='CSV' name='feed_name_replace[settings][delimiter]' class='delimiter'><br class='CSV' />";
+								html += "<td><select class='CSV' name='feed_name_replace[settings][delimiter]' onchange='saveFeedsAjax();' class='delimiter'><br class='CSV' />";
                                 var delimiters = {
                                 	',': ',',
                                 	':': ':',
@@ -963,7 +904,7 @@ $(document).ready(function() {
                                 <!-- CSV Filename -->
                                 html += "<tr>";
                                 html += "<td><label class='CSV' for='filename'>Filename: </label></td>";
-                                html += "<td><input class='CSV' name='feed_name_replace[settings][filename]' placeholder='opencart_products.csv' type='text' value='";
+                                html += "<td><input class='CSV' name='feed_name_replace[settings][filename]' placeholder='opencart_products.csv' onchange='saveFeedsAjax();' type='text' value='";
                                 if(settings.filename) {
                                     html += settings.filename;
                                 }
@@ -973,7 +914,7 @@ $(document).ready(function() {
                                 <!-- CDATA -->
                                 html += "<tr>";
 								html += "<td><label class='XML' for='cdata'>Use cdata: </label></td>";
-								html += "<td><select class='XML settings_cdata settings_" + encodedName(name) + "' name='feed_name_replace[settings][cdata]'>";
+								html += "<td><select onchange='saveFeedsAjax();' class='XML settings_cdata settings_" + encodedName(name) + "' name='feed_name_replace[settings][cdata]'>";
 								var cdata_options = [
 									{text: 'Yes', val: 1},
 									{text: 'No', val: 0},
@@ -1001,13 +942,7 @@ $(document).ready(function() {
                                 <!-- Currency -->
                                 html += "<tr>";
                                 html += "<td><label for='currency'>Currency: </label></td>";
-                            	html += "<td><select name='feed_name_replace[settings][currency]'>";
-                                <?php
-                                    $currencies['ALL'] = array(
-                                        "code" => "ALL",
-                                        "title" => "All Currency"
-                                    );
-                                ?>
+                            	html += "<td><select onchange='saveFeedsAjax();' name='feed_name_replace[settings][currency]'>";
                             	<?php foreach ($currencies as $currency_name => $currency_data) { ?>
                         			html += "<option value='<?php echo $currency_name ?>'";
                         			if ((settings.currency && settings.currency == <?php echo "'".$currency_name."'"; ?>) ||
@@ -1022,14 +957,7 @@ $(document).ready(function() {
 								<!-- Language -->
 								html += "<tr>";
 								html += "<td><label for='language'>Language: </label></td>";
-                            	html += "<td><select name='feed_name_replace[settings][language]'>";
-                                <?php
-                                    $languages[0] = array(
-                                          "language_id" => 0,
-                                          "name" => "All Languages"
-                                    );
-                                ?>
-                                
+                            	html += "<td><select onchange='saveFeedsAjax();' name='feed_name_replace[settings][language]'>";
                             	<?php foreach ($languages as $language_name => $language_data) { ?>
                         			html += "<option value='<?php echo $language_data['language_id'] ?>'";
                         			if ((settings.language && settings.language == <?php echo "'".$language_data['language_id']."'"; ?>) ||
@@ -1049,12 +977,12 @@ $(document).ready(function() {
 										settings.store = [];
 									html += "<td><label class='shops'>Shops: </label></td>";
 									html += "<td>";
-									html += "<div><input type='checkbox' class='multistore_checkbox' id='checkbox_store_0' onclick='selectStoreCheckbox(0)' name='feed_name_replace[settings][store][Default]' value='0'";
+									html += "<div><input type='checkbox' class='multistore_checkbox' name='feed_name_replace[settings][store][Default]' value='0'";
 									if (settings.store.Default || Object.keys(settings.store).length === 0)
 										html += "checked='true'";
 									html += "><label>Default</label></div>";
 									<?php foreach ($store_selections as $sto) { ?>
-										html += "<div><input type='checkbox' class='multistore_checkbox' id='checkbox_store_<?php echo $sto['store_id']; ?>' onclick='selectStoreCheckbox(<?php echo $sto['store_id']; ?>)' name='feed_name_replace[settings][store][<?php echo $sto['name']; ?>]' value='<?php echo $sto['store_id']; ?>'";
+										html += "<div><input type='checkbox' class='multistore_checkbox' name='feed_name_replace[settings][store][<?php echo $sto['name']; ?>]' value='<?php echo $sto['store_id']; ?>'";
 										if (settings.store['<?php echo $sto['name'] ?>'])
 										 	html += "checked='true'";
 										html += "><label><?php echo $sto['name']; ?></label></div>";
@@ -1067,7 +995,7 @@ $(document).ready(function() {
 								<!-- CACHE -->
                                 html += "<tr>";
 								html += "<td><label for='cache'>Use Cache: </label></td>";
-								html += "<td><select class='settings_cache settings_" + encodedName(name) + "' name='feed_name_replace[settings][cache]'>";
+								html += "<td><select onchange='saveFeedsAjax();' class='settings_cache settings_" + encodedName(name) + "' name='feed_name_replace[settings][cache]'>";
 								var cache_options = ['No','Yes'];
 								for (index = 0; index < cache_options.length; ++index) {
 									html += "<option value='"+ cache_options[index] +"'";
@@ -1299,7 +1227,7 @@ $(document).ready(function() {
 													html += ' selected="true"';
 			            						html += '>Custom</option>'+
 			        							'</select>'+
-    											"<div class='name_map_list c'";
+    											"<div class='name_map_list'";
     											if (field_settings['enabled'] == '1')
     												html += 'style="display:block"';
     											html += ">"+
@@ -1356,72 +1284,7 @@ $(document).ready(function() {
 		}).done(function() {
 			typeof callback === 'function' && callback();
 		});
-                
-               // setAccordianOnDiv();
 	}
 });
 </script>
 <?php echo $footer; ?>
-
-
-<script type="text/javascript">
-    function copyFile(url) {
-        window.location.href = url;
-    }
-    
-    function exportFile(url) {
-        window.location.href = url;
-    }
-    
-    $(document).ready(function() { 
-      $(window).load(function() { 
-            // code here
-           setTimeout(function() {
-               var acc = document.getElementsByClassName("accordiona");
-               var i;
-               for (i = 0; i < acc.length; i++) {
-                   acc[i].addEventListener("click", function() {
-                       this.classList.toggle("activea");
-                       var panel = this.nextElementSibling;
-                       if (panel.style.display === "block") {
-                           panel.style.display = "none";
-                       } else {
-                           panel.style.display = "block";
-                       }               
-                   });
-               }
-           }, 1000);
-      });
-    });
-    
-    function selectStoreCheckbox(id) {
-        if($('#checkbox_store_' + id).prop('checked')){
-            $('#checkbox_store_' + id).attr('checked', true);
-            // $('#checkbox_store_' + id).prop('checked');            
-        }else{
-            $('#checkbox_store_' + id).attr('checked', false);
-        }
-    }
-    
-    /*
-    $(document).load(function () {
-        // code here
-       // setTimeout(function() {
-           var acc = document.getElementsByClassName("accordiona");
-           var i;
-           for (i = 0; i < acc.length; i++) {
-               acc[i].addEventListener("click", function() {
-                   this.classList.toggle("activea");
-                   var panel = this.nextElementSibling;
-                   if (panel.style.display === "block") {
-                       panel.style.display = "none";
-                   } else {
-                       panel.style.display = "block";
-                   }               
-               });
-           }
-       // }, 2000);
-    });
-    */
-     
-</script>
