@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+    <name>Add Any Feed PRO to Tools menu</name>
+    <version>1.0</version>
+    <code>AFP1</code>
+    <author>HostJars</author>
+    <link>http://www.hostjars.com</link>
+    <file path="admin/view/template/common/menu.tpl">
+        <operation info="Add Any Feed PRO to menu">
+            <search><![CDATA[
+                <li><a href="<?php echo $backup; ?>"><?php echo $text_backup; ?></a></li>
+            ]]></search>
+            <add position="after"><![CDATA[
+                <li><a href="<?php echo str_replace('tool/backup', 'feed/any_feed_pro', $backup); ?>">Any Feed PRO</a></li>
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/model/catalog/product.php">
+        <operation>
+            <search><![CDATA[
+                if (isset($data['product_store'])) {
+            ]]></search>
+            <add position="before"><![CDATA[
+				$this->db->query("DELETE FROM " . DB_PREFIX . "hj_any_feed_pro_feeds_product WHERE product_id = '" . (int)$product_id . "'");
+		if (isset($data['any-feed'])) {
+			foreach ($data['any-feed'] as $store_id => $feedData) {
+				if($feedData['ean'] || $feedData['mpn']){
+					$this->db->query("INSERT INTO " . DB_PREFIX . "hj_any_feed_pro_feeds_product SET product_id = '" . (int)$product_id . "', store_id = '" . (int)$store_id . "', ean = '" . $this->db->escape($feedData['ean']) . "', mpn = '" . $this->db->escape($feedData['mpn']) . "'");
+				}
+			}
+		}
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+                public function getProduct($product_id) {
+            ]]></search>
+            <add position="before"><![CDATA[
+				public function getProductAnyFeedSettings($product_id) {
+		$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "hj_any_feed_pro_feeds_product WHERE product_id = '" . (int)$product_id . "'");
+		$data = array();
+		if($query->rows){
+			foreach($query->rows as $row){
+				$data[$row['store_id']] = $row;
+			}
+		}
+		return $data;
+	}
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/controller/catalog/product.php">
+        <operation>
+            <search><![CDATA[
+                $data['product_options'] = array();
+            ]]></search>
+            <add position="before"><![CDATA[
+				if(isset($this->request->post['any-feed'])){
+					$data['any_feed'] = $this->request->post['any-feed'];
+				} elseif (!empty($product_info)) {
+					$data['any_feed'] = $this->model_catalog_product->getProductAnyFeedSettings($product_info['product_id']);
+				}else{
+					$data['any_feed'] = array();
+				}
+            ]]></add>
+        </operation>
+    </file>
+    <file path="admin/view/template/catalog/product_form.tpl">
+        <operation info="Add Any Feed PRO to menu">
+            <search><![CDATA[
+                <div class="tab-pane" id="tab-links">
+            ]]></search>
+            <add position="before"><![CDATA[
+                <div class="tab-pane" id="tab-any-feed">
+              <div class="table-responsive">
+                <table id="attribute" class="table table-striped table-bordered table-hover">
+                  <thead>
+                    <tr>
+                      <td class="text-left">Store Name</td>
+                      <td class="text-left">EAN</td>
+                      <td class="text-left">MPN</td>
+                      <td></td>
+                    </tr>
+                  </thead>
+                  <tbody>
+						<tr>
+						  <td class="text-left">Default</td>
+						  <td class="text-left" style="width:40%;"><input type="text" name="any-feed[0][ean]" value="<?php echo (isset($any_feed[0]) && $any_feed[0]['ean']) ? $any_feed[0]['ean'] : ''; ?>" placeholder="EAN" class="form-control" /></td>
+						  <td class="text-left" style="width:40%;"><input type="text" name="any-feed[0][mpn]" value="<?php echo (isset($any_feed[0]) && $any_feed[0]['mpn']) ? $any_feed[0]['mpn'] : ''; ?>" placeholder="MPN" class="form-control" /></td>
+						</tr>
+					<?php if($stores){?>
+					<?php foreach($stores as $store){?>
+						<tr>
+						  <td class="text-left"><?php echo $store['name']; ?></td>
+						  <td class="text-left" style="width:40%;"><input type="text" name="any-feed[<?php echo $store['store_id']; ?>][ean]" value="<?php echo (isset($any_feed[$store['store_id']]) && $any_feed[$store['store_id']]['ean']) ? $any_feed[$store['store_id']]['ean'] : ''; ?>" placeholder="EAN" class="form-control" /></td>
+						  <td class="text-left" style="width:40%;"><input type="text" name="any-feed[<?php echo $store['store_id']; ?>][mpn]" value="<?php echo (isset($any_feed[$store['store_id']]) && $any_feed[$store['store_id']]['mpn']) ? $any_feed[$store['store_id']]['mpn'] : ''; ?>" placeholder="MPN" class="form-control" /></td>
+						</tr>
+					<?php } ?>
+					<?php } ?>
+                  </tbody>
+                </table>
+              </div>
+			</div>
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[
+                <li><a href="#tab-links" data-toggle="tab"><?php echo $tab_links; ?></a></li>
+            ]]></search>
+            <add position="before"><![CDATA[
+                <li><a href="#tab-any-feed" data-toggle="tab">AnyFeed</a></li>
+            ]]></add>
+        </operation>
+    </file>
+</modification>
