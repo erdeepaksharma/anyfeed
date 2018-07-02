@@ -1,0 +1,417 @@
+diff --git a/admin/controller/feed/any_feed_pro.php b/admin/controller/feed/any_feed_pro.php
+index 5829aa1..f6def81 100644
+--- a/admin/controller/feed/any_feed_pro.php
++++ b/admin/controller/feed/any_feed_pro.php
+@@ -346,7 +346,9 @@ class ControllerFeedAnyFeedPro extends Controller {
+         $data['common_field_settings'] = $common_settings;
+ 
+         $profiles = $this->model_feed_any_feed_pro->getProfiles();
+-
++        
++        // $this->model_feed_any_feed_pro->deleteProfileUsingId(538);
++        
+         $profile_list = array();
+         foreach ($profiles as $profile) {
+             foreach ($profile as $name => $value) {
+@@ -1222,8 +1224,95 @@ class ControllerFeedAnyFeedPro extends Controller {
+ 
+         $this->response->setOutput($this->load->view('feed/create_profile.tpl', $data));
+     }
++    
++    public function createFeed() {
++        $this->load->language('feed/any_feed_pro');
++
++        $this->document->setTitle($this->language->get('heading_title'));
++
++        $this->load->model('feed/any_feed_pro');
++
++        $data['heading_title'] = "Create Feed";
++
++        $data['text_edit'] = $this->language->get('text_edit');
++        $data['button_save'] = $this->language->get('button_save');
++        $data['button_cancel'] = $this->language->get('button_cancel');
++
++
++        if (isset($this->error['name'])) {
++            $data['error_name'] = $this->error['name'];
++        } else {
++            $data['error_name'] = '';
++        }
++
++        if (isset($this->error['filename'])) {
++            $data['error_filename'] = $this->error['filename'];
++        } else {
++            $data['error_filename'] = '';
++        }
+ 
++        if (isset($this->error['store'])) {
++            $data['error_store'] = $this->error['store'];
++        } else {
++            $data['error_store'] = '';
++        }
++
++        if (!isset($this->request->get['module_id'])) {
++            $data['action'] = $this->url->link('feed/any_feed_pro/createFeed', 'token=' . $this->session->data['token'], true);
++        } else {
++            $data['action'] = $this->url->link('feed/any_feed_pro/createFeed', 'token=' . $this->session->data['token'] . '&module_id=' . $this->request->get['module_id'], true);
++        }
++
++        $data['token'] = $this->session->data['token'];        
+ 
++        $data['header'] = $this->load->controller('common/header');
++        $data['column_left'] = $this->load->controller('common/column_left');
++        $data['footer'] = $this->load->controller('common/footer');
++        
++        $data['preset_profile'] = $getPresetProfiles = $this->model_feed_any_feed_pro->getPresetProfiles();
++
++        if (($this->request->server['REQUEST_METHOD'] == 'POST')) {
++            if(!empty($this->request->post['name'])) {
++            	
++            	$isOnlyNumber = preg_match( '/[a-zA-Z]/', $this->request->post['name']);
++            	if(empty($isOnlyNumber))
++            		$data['error_name'] = "Please enter some alphabetic character to make it string. It's required!";
++            	else {
++	                $isProfileExist = $this->model_feed_any_feed_pro->isProfileExist($this->request->post['name']);
++	                if(!empty($isProfileExist)) {
++	                    $data['error_name'] = "Please enter valid details. Profile name already exist!";
++	                }else {
++	                    $name = "";
++	                    $profile_name = $this->model_feed_any_feed_pro->getProfileByName($this->request->post['preset_profile_name']);
++	                    if(!empty($profile_name)) {
++	                        $sqlData = $profile_name;
++	                        unset($sqlData["id"]);
++	
++	                        $sqlData["name"] = $this->request->post['name'];
++	                        $sqlData["preset"] = 0;
++	                        $this->model_feed_any_feed_pro->duplicateProfile($sqlData);
++	                    }
++	
++	                    $this->response->redirect($this->url->link('feed/any_feed_pro', 'token=' . $this->session->data['token'] . '&type=module', true));                                        
++	                }
++            	}
++            }else {
++                $data['error_name'] = "Please enter valid details. It's required!";
++            }
++        }
++
++        $this->response->setOutput($this->load->view('feed/create_feed.tpl', $data));
++    }
++    
++    
++    public function deleteFeed() {
++    	$name = $this->request->get['name'];
++    	$this->load->model('feed/any_feed_pro');
++    	$getProfileInfo = $this->model_feed_any_feed_pro->deleteProfileFeed($name);
++    	$this->session->data['success'] = "Success: Feed successfully deleted!";
++    	$this->response->redirect($this->url->link('feed/any_feed_pro', 'token=' . $this->session->data['token'] . '&type=module', true));
++    }
++    
+     public function deleteProfileUsingId() {
+         $id = $this->request->get['id'];
+         $this->load->model('feed/any_feed_pro');
+diff --git a/admin/model/feed/any_feed_pro.php b/admin/model/feed/any_feed_pro.php
+index 9ed8199..2461fd5 100644
+--- a/admin/model/feed/any_feed_pro.php
++++ b/admin/model/feed/any_feed_pro.php
+@@ -38,11 +38,12 @@ class ModelFeedAnyFeedPro extends Model {
+         }
+ 
+         if (!empty($fields) && !empty($settings)) {
+-            $getFields = json_encode($fields);
++            $getFields = json_encode($fields, JSON_UNESCAPED_UNICODE);
+ 
+             // $values[] = "`settings`= '" . $settings . "'";
+             $values[] = "`fields`= '" . $getFields . "'";
+             $sql = 'UPDATE ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ' . implode(',', $values) . ' WHERE ' . DB_PREFIX . 'hj_any_feed_pro_feeds.`id` = ' . $id;
++			$sql = str_replace("'s", "\'s", $sql);
+ 
+             $this->db->query($sql);
+         }
+@@ -66,14 +67,19 @@ class ModelFeedAnyFeedPro extends Model {
+         $values = array();
+ //        $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
+         $settings = json_encode($feeds);
++        
++        $name = trim($name);
++        $name = str_replace(" ", "_", $name);
++        $name = preg_replace('/[^a-zA-Z0-9]+/', '_', $name);
+ 
+-        $values[] = "`name`= '" . $name . "'";
++        $values[] = '`name`= "' . $name . '"';
+         $values[] = "`settings`= '" . $settings . "'";
+ //        $values[] = "`preset`='1'";
+ //        $values[] = "`version`='" . $this->version . "'";
+ 
+         $sql = 'UPDATE ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ' . implode(',', $values) . ' WHERE ' . DB_PREFIX . 'hj_any_feed_pro_feeds.`id` = ' . $id;
+-
++		$sql = str_replace("'s", "\'s", $sql);
++		
+         $this->db->query($sql);
+     }
+ 
+@@ -81,13 +87,18 @@ class ModelFeedAnyFeedPro extends Model {
+         $values = array();
+         $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
+ 
+-        $values[] = "`name`= '" . $feeds["name"] . "'";
++        $name = trim($feeds["name"]);
++        $name = str_replace(" ", "_", $name);
++        $name = preg_replace('/[^a-zA-Z0-9]+/', '_', $name);
++        
++        $values[] = '`name`= "' . $name . '"';
+         $values[] = "`settings`= '" . $feeds["settings"] . "'";
+-        $values[] = "`version`='" . $feeds["version"] . "'";
+-        $values[] = "`preset`='" . $feeds["preset"] . "'";
+-        $values[] = "`fields`='" . $feeds["fields"] . "'";
++        $values[] = '`version`= "' . $feeds["version"] . '"';
++        $values[] = '`preset`= "' . $feeds["preset"] . '"';
++        $values[] = "`fields`= '" . $feeds["fields"] . "'";
+ 
+         $sql .= implode(',', $values);
++        $sql = str_replace("'s", "\'s", $sql);
+ 
+         $this->db->query($sql);
+     }
+@@ -103,38 +114,72 @@ class ModelFeedAnyFeedPro extends Model {
+         $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
+         $settings = json_encode($feeds);
+ 
+-        $values[] = "`name`= '" . $name . "'";
++        $name = trim($name);
++        $name = str_replace(" ", "_", $name);
++        $name = preg_replace('/[^a-zA-Z0-9]+/', '_', $name);
++        
++        $values[] = '`name`= "' . $name . '"';
+         $values[] = "`settings`= '" . $settings . "'";
+-        $values[] = "`preset`='1'";
+-        $values[] = "`version`='" . $this->version . "'";
++        $values[] = '`preset`="1"';
++        $values[] = '`version`="' . $this->version . '"';
+ 
+         $sql .= implode(',', $values);
++        $sql = str_replace("'s", "\'s", $sql);
+ 
+         $this->db->query($sql);
+     }
+ 
+     public function save($feeds) {
+-        $this->db->query("DELETE FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE `preset` != 1");
+-
+         //build the sql and insert each preset feed
+         foreach ($feeds as $name => $feed) {
+             $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
+             $values = array();
+             foreach ($feed as $column => $value) {
++                if(!empty($column) && ($column == 'name'))
++                    $tempName = $value;
++                    
+                 if ($column == 'version' || $column == 'name' || $column == 'preset') {
+-                    $values[] = '`' . $column . "`='" . $this->db->escape($value) . "'";
++                    $values[] = '`' . $column . '`="' . $this->db->escape($value) . '"';
+                 } else {
+                     if ($column == 'settings' && !isset($value['enable'])) {
+                         $value['enable'] = 0;
+                     }
+-                    $values[] = '`' . $column . "`='" . $this->db->escape(json_encode($value)) . "'";
++                    
++                    if(isset($column) && !empty($column) && ($column == "fields"))
++                    	$values[] = '`' . $column . "`='" . $this->db->escape(json_encode($value, JSON_UNESCAPED_UNICODE)) . "'";
++                    else
++                    	$values[] = '`' . $column . "`='" . $this->db->escape(json_encode($value)) . "'";
++                    
+                 }
+             }
+             $values[] = "`preset`='0'";
+             $values[] = "`version`='" . $this->version . "'";
+-            $sql .= implode(',', $values);
+ 
+-            $this->db->query($sql);
++			$isProfileExist = $this->isProfileExist($tempName);
++			if(isset($isProfileExist) && !empty($isProfileExist)) {
++	           if(!empty($tempName))
++	             	$this->deleteProfileFeed($tempName);
++	                
++	            $sql .= implode(',', $values);
++	                
++				// UPDATE FEED
++        		// $sql = 'UPDATE ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ' . implode(',', $values) . ' WHERE ' . DB_PREFIX . 'hj_any_feed_pro_feeds.`name` = "' . $tempName . '"';
++			}else {
++				// INSERT FEED
++				$sql .= implode(',', $values);
++			}
++			
++			if($tempName == "shopzilla_4") {
++				// echo $sql; die;
++			}
++			
++			
++			$this->db->query($sql);
++
++/*
++            if(!empty($tempName))
++                $this->deleteProfileFeed($tempName);
++                */
+         }
+     }
+ 
+@@ -159,6 +204,10 @@ class ModelFeedAnyFeedPro extends Model {
+     }
+ 
+     public function isProfileExist($profile) {
++        $profile = trim($profile);
++        $profile = str_replace(" ", "_", $profile);
++        $profile = preg_replace('/[^a-zA-Z0-9]+/', '_', $profile);
++        
+         $query = $this->db->query("SELECT DISTINCT * FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE `name` = '" . $this->db->escape($profile) . "';");
+         return (isset($query->row['id'])) ? $query->rows : array();
+     }
+@@ -173,6 +222,10 @@ class ModelFeedAnyFeedPro extends Model {
+         return (isset($query->row['id'])) ? $query->rows : array();
+     }
+ 
++    public function deleteProfileFeed($profile) {
++        $this->db->query("DELETE FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE  `preset` = '0' AND `name` = '" . $this->db->escape($profile) . "'");
++    }
++
+     public function deleteProfile($profile) {
+         $this->db->query("DELETE FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE `name` = '" . $this->db->escape($profile) . "'");
+     }
+@@ -198,6 +251,8 @@ class ModelFeedAnyFeedPro extends Model {
+             }
+             $values[] = "`preset`='1'";
+             $sql .= implode(',', $values);
++            $sql = str_replace("'s", "\'s", $sql);
++            
+             $this->db->query($sql);
+         };
+     }
+diff --git a/admin/view/template/feed/any_feed_pro.tpl b/admin/view/template/feed/any_feed_pro.tpl
+index be70a81..ca80056 100644
+--- a/admin/view/template/feed/any_feed_pro.tpl
++++ b/admin/view/template/feed/any_feed_pro.tpl
+@@ -5,7 +5,6 @@
+ #################################################################################
+ */
+ ?>
+-
+ <style type="text/css">
+     .name-label {
+         font-size: 22px;
+@@ -67,14 +66,14 @@
+ 		<?php } ?>
+ 	</ul>
+ 	<div class="buttons pull-right">
+-	    <button id="create-feed" class="button btn btn-primary"><?php echo $entry_add_feed; ?></button>
++	    <button class="button btn btn-primary" onclick="window.location.href = 'index.php?route=feed/any_feed_pro/createFeed&token=<?php echo $token ?>'"><?php echo $entry_add_feed; ?></button>
+             <button class="button btn btn-primary" onclick="window.location.href = 'index.php?route=feed/any_feed_pro/manageProfile&token=<?php echo $token ?>'" style="background-color: coral; border-color: coral;"><?php echo "Manage Profiles"; ?></button>
+ 	    <button onclick="return saveFeedsAjax();" class="button btn btn-success"><?php echo $button_save; ?></button>
+ 	    <button onclick="location = '<?php echo $cancel; ?>';" class="button btn btn-danger"><?php echo $button_cancel; ?></button>
+ 	</div>
+ </div>
+ </div>
+-  <div class="container-fluid">
++  <div class="container-fluid"window>
+ <?php if ($error_warning) { ?>
+ <div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> <?php echo $error_warning; ?>
+     <button type="button" class="close" data-dismiss="alert">&times;</button>
+@@ -413,7 +412,7 @@ function saveFeedsAjax() {
+ 			$('input[sort_order]').remove();
+       $('#ajaxSpinner').hide();
+       $('#ajaxFade').hide();
+-      window.location.href = 'index.php?route=feed/any_feed_pro&token=<?php echo $token ?>';
++      // window.location.href = 'index.php?route=feed/any_feed_pro&token=<?php echo $token ?>';
+     },
+ 	});
+ }
+@@ -857,8 +856,9 @@ $(document).ready(function() {
+ 
+ 		var copyurl = 'index.php?route=feed/any_feed_pro/duplicate&name=' + encodedName(name) + '&token=<?php echo $token ?>';
+ 		var feedSettingurl = 'index.php?route=feed/any_feed_pro/editFeedSettings&name=' + encodedName(name) + '&token=<?php echo $token ?>';
++		var feedDelete = 'index.php?route=feed/any_feed_pro/deleteFeed&name=' + encodedName(name) + '&token=<?php echo $token ?>';
+ 
+-		html = '<button class="accordiona"><span class="name-label"><i class="fa fa-rss-square" aria-hidden="true"></i>&nbsp;&nbsp;' + prettyName(name) + '</span></button><div class="field_content panela" style="width: 100%;">';
++		html = '<button class="accordiona" id="accordion_' + name + '" onclick="manageAccordian(\'' + name + '\')"><span class="name-label"><i class="fa fa-rss-square" aria-hidden="true"></i>&nbsp;&nbsp;' + prettyName(name) + '</span></button><div id="feed_div_' + name + '" class="field_content panela" style="width: 100%;">';
+ 			addedDefaults = false;
+ 			 $.each(data, function(key, val) {
+ 					switch(key) {
+@@ -874,8 +874,9 @@ $(document).ready(function() {
+ 							html += "<i class='fa fa-external-link fa-lg'></i> Export Feed</a>";
+ 							html += "<span class='get_feed_modal feed_header_buttons' name='feed_name_replace[settings][feed_get_url]' data-url='" + url + "'>";
+ 							html += "<i class='fa fa-external-link fa-lg'></i> Get Feed URL </span>";
+-							html += '<span class="remove feed_header_buttons"><i class="fa fa-trash-o fa-lg"></i></span><input class="replace_me" type="hidden" name="feed_name_replace[name]" value="' + encodedName(name) + '"/>';
+-							html += "<a class='btn-save-feed feed_header_buttons'><i class='fa fa-save fa-lg'></i></a>";
++							html += '<a class="feed_header_buttons" href="javascript: void(0)" onclick=\'deleteFeed("'+ feedDelete +'")\'><span><i class="fa fa-trash-o fa-lg"></i> Delete Feed </span><input class="replace_me" type="hidden" name="feed_name_replace[name]" value="' + encodedName(name) + '"/>';
++							// html += '<span class="remove feed_header_buttons"><i class="fa fa-trash-o fa-lg"></i></span><input class="replace_me" type="hidden" name="feed_name_replace[name]" value="' + encodedName(name) + '"/>';
++							html += "<a class='btn-save-feed feed_header_buttons'><i class='fa fa-save fa-lg'></i> Save</a>";
+ 
+ 							html += '</div>';
+ 
+@@ -1373,26 +1374,16 @@ $(document).ready(function() {
+         window.location.href = url;
+     }
+     
+-    $(document).ready(function() { 
+-      $(window).load(function() { 
+-            // code here
+-           setTimeout(function() {
+-               var acc = document.getElementsByClassName("accordiona");
+-               var i;
+-               for (i = 0; i < acc.length; i++) {
+-                   acc[i].addEventListener("click", function() {
+-                       this.classList.toggle("activea");
+-                       var panel = this.nextElementSibling;
+-                       if (panel.style.display === "block") {
+-                           panel.style.display = "none";
+-                       } else {
+-                           panel.style.display = "block";
+-                       }               
+-                   });
+-               }
+-           }, 1000);
+-      });
+-    });
++    function manageAccordian(name) {
++    	var nameObj = document.getElementById("feed_div_" + name);
++    	var accordianObj = document.getElementById("accordion_" + name);
++    	accordianObj.classList.toggle("activea");
++       	if (nameObj.style.display === "block") {
++        	   nameObj.style.display = "none";
++    	 } else {
++        	   nameObj.style.display = "block";
++       	}    
++    }
+     
+     function selectStoreCheckbox(id) {
+         if($('#checkbox_store_' + id).prop('checked')){
+@@ -1403,25 +1394,11 @@ $(document).ready(function() {
+         }
+     }
+     
+-    /*
+-    $(document).load(function () {
+-        // code here
+-       // setTimeout(function() {
+-           var acc = document.getElementsByClassName("accordiona");
+-           var i;
+-           for (i = 0; i < acc.length; i++) {
+-               acc[i].addEventListener("click", function() {
+-                   this.classList.toggle("activea");
+-                   var panel = this.nextElementSibling;
+-                   if (panel.style.display === "block") {
+-                       panel.style.display = "none";
+-                   } else {
+-                       panel.style.display = "block";
+-                   }               
+-               });
+-           }
+-       // }, 2000);
+-    });
+-    */
++    
++    function deleteFeed(url) {
++        if(confirm("Are you sure ?")) {
++            window.location.href = url;
++        }
++    }
+      
+ </script>

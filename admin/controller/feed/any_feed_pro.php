@@ -346,7 +346,9 @@ class ControllerFeedAnyFeedPro extends Controller {
         $data['common_field_settings'] = $common_settings;
 
         $profiles = $this->model_feed_any_feed_pro->getProfiles();
-
+        
+        // $this->model_feed_any_feed_pro->deleteProfileUsingId(538);
+        
         $profile_list = array();
         foreach ($profiles as $profile) {
             foreach ($profile as $name => $value) {
@@ -1222,8 +1224,95 @@ class ControllerFeedAnyFeedPro extends Controller {
 
         $this->response->setOutput($this->load->view('feed/create_profile.tpl', $data));
     }
+    
+    public function createFeed() {
+        $this->load->language('feed/any_feed_pro');
+
+        $this->document->setTitle($this->language->get('heading_title'));
+
+        $this->load->model('feed/any_feed_pro');
+
+        $data['heading_title'] = "Create Feed";
+
+        $data['text_edit'] = $this->language->get('text_edit');
+        $data['button_save'] = $this->language->get('button_save');
+        $data['button_cancel'] = $this->language->get('button_cancel');
 
 
+        if (isset($this->error['name'])) {
+            $data['error_name'] = $this->error['name'];
+        } else {
+            $data['error_name'] = '';
+        }
+
+        if (isset($this->error['filename'])) {
+            $data['error_filename'] = $this->error['filename'];
+        } else {
+            $data['error_filename'] = '';
+        }
+
+        if (isset($this->error['store'])) {
+            $data['error_store'] = $this->error['store'];
+        } else {
+            $data['error_store'] = '';
+        }
+
+        if (!isset($this->request->get['module_id'])) {
+            $data['action'] = $this->url->link('feed/any_feed_pro/createFeed', 'token=' . $this->session->data['token'], true);
+        } else {
+            $data['action'] = $this->url->link('feed/any_feed_pro/createFeed', 'token=' . $this->session->data['token'] . '&module_id=' . $this->request->get['module_id'], true);
+        }
+
+        $data['token'] = $this->session->data['token'];        
+
+        $data['header'] = $this->load->controller('common/header');
+        $data['column_left'] = $this->load->controller('common/column_left');
+        $data['footer'] = $this->load->controller('common/footer');
+        
+        $data['preset_profile'] = $getPresetProfiles = $this->model_feed_any_feed_pro->getPresetProfiles();
+
+        if (($this->request->server['REQUEST_METHOD'] == 'POST')) {
+            if(!empty($this->request->post['name'])) {
+            	
+            	$isOnlyNumber = preg_match( '/[a-zA-Z]/', $this->request->post['name']);
+            	if(empty($isOnlyNumber))
+            		$data['error_name'] = "Please enter some alphabetic character to make it string. It's required!";
+            	else {
+	                $isProfileExist = $this->model_feed_any_feed_pro->isProfileExist($this->request->post['name']);
+	                if(!empty($isProfileExist)) {
+	                    $data['error_name'] = "Please enter valid details. Profile name already exist!";
+	                }else {
+	                    $name = "";
+	                    $profile_name = $this->model_feed_any_feed_pro->getProfileByName($this->request->post['preset_profile_name']);
+	                    if(!empty($profile_name)) {
+	                        $sqlData = $profile_name;
+	                        unset($sqlData["id"]);
+	
+	                        $sqlData["name"] = $this->request->post['name'];
+	                        $sqlData["preset"] = 0;
+	                        $this->model_feed_any_feed_pro->duplicateProfile($sqlData);
+	                    }
+	
+	                    $this->response->redirect($this->url->link('feed/any_feed_pro', 'token=' . $this->session->data['token'] . '&type=module', true));                                        
+	                }
+            	}
+            }else {
+                $data['error_name'] = "Please enter valid details. It's required!";
+            }
+        }
+
+        $this->response->setOutput($this->load->view('feed/create_feed.tpl', $data));
+    }
+    
+    
+    public function deleteFeed() {
+    	$name = $this->request->get['name'];
+    	$this->load->model('feed/any_feed_pro');
+    	$getProfileInfo = $this->model_feed_any_feed_pro->deleteProfileFeed($name);
+    	$this->session->data['success'] = "Success: Feed successfully deleted!";
+    	$this->response->redirect($this->url->link('feed/any_feed_pro', 'token=' . $this->session->data['token'] . '&type=module', true));
+    }
+    
     public function deleteProfileUsingId() {
         $id = $this->request->get['id'];
         $this->load->model('feed/any_feed_pro');

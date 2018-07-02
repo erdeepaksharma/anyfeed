@@ -38,11 +38,12 @@ class ModelFeedAnyFeedPro extends Model {
         }
 
         if (!empty($fields) && !empty($settings)) {
-            $getFields = json_encode($fields);
+            $getFields = json_encode($fields, JSON_UNESCAPED_UNICODE);
 
             // $values[] = "`settings`= '" . $settings . "'";
             $values[] = "`fields`= '" . $getFields . "'";
             $sql = 'UPDATE ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ' . implode(',', $values) . ' WHERE ' . DB_PREFIX . 'hj_any_feed_pro_feeds.`id` = ' . $id;
+			$sql = str_replace("'s", "\'s", $sql);
 
             $this->db->query($sql);
         }
@@ -66,14 +67,19 @@ class ModelFeedAnyFeedPro extends Model {
         $values = array();
 //        $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
         $settings = json_encode($feeds);
+        
+        $name = trim($name);
+        $name = str_replace(" ", "_", $name);
+        $name = preg_replace('/[^a-zA-Z0-9]+/', '_', $name);
 
-        $values[] = "`name`= '" . $name . "'";
+        $values[] = '`name`= "' . $name . '"';
         $values[] = "`settings`= '" . $settings . "'";
 //        $values[] = "`preset`='1'";
 //        $values[] = "`version`='" . $this->version . "'";
 
         $sql = 'UPDATE ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ' . implode(',', $values) . ' WHERE ' . DB_PREFIX . 'hj_any_feed_pro_feeds.`id` = ' . $id;
-
+		$sql = str_replace("'s", "\'s", $sql);
+		
         $this->db->query($sql);
     }
 
@@ -81,13 +87,18 @@ class ModelFeedAnyFeedPro extends Model {
         $values = array();
         $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
 
-        $values[] = "`name`= '" . $feeds["name"] . "'";
+        $name = trim($feeds["name"]);
+        $name = str_replace(" ", "_", $name);
+        $name = preg_replace('/[^a-zA-Z0-9]+/', '_', $name);
+        
+        $values[] = '`name`= "' . $name . '"';
         $values[] = "`settings`= '" . $feeds["settings"] . "'";
-        $values[] = "`version`='" . $feeds["version"] . "'";
-        $values[] = "`preset`='" . $feeds["preset"] . "'";
-        $values[] = "`fields`='" . $feeds["fields"] . "'";
+        $values[] = '`version`= "' . $feeds["version"] . '"';
+        $values[] = '`preset`= "' . $feeds["preset"] . '"';
+        $values[] = "`fields`= '" . $feeds["fields"] . "'";
 
         $sql .= implode(',', $values);
+        $sql = str_replace("'s", "\'s", $sql);
 
         $this->db->query($sql);
     }
@@ -103,38 +114,72 @@ class ModelFeedAnyFeedPro extends Model {
         $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
         $settings = json_encode($feeds);
 
-        $values[] = "`name`= '" . $name . "'";
+        $name = trim($name);
+        $name = str_replace(" ", "_", $name);
+        $name = preg_replace('/[^a-zA-Z0-9]+/', '_', $name);
+        
+        $values[] = '`name`= "' . $name . '"';
         $values[] = "`settings`= '" . $settings . "'";
-        $values[] = "`preset`='1'";
-        $values[] = "`version`='" . $this->version . "'";
+        $values[] = '`preset`="1"';
+        $values[] = '`version`="' . $this->version . '"';
 
         $sql .= implode(',', $values);
+        $sql = str_replace("'s", "\'s", $sql);
 
         $this->db->query($sql);
     }
 
     public function save($feeds) {
-        $this->db->query("DELETE FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE `preset` != 1");
-
         //build the sql and insert each preset feed
         foreach ($feeds as $name => $feed) {
             $sql = 'INSERT INTO ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ';
             $values = array();
             foreach ($feed as $column => $value) {
+                if(!empty($column) && ($column == 'name'))
+                    $tempName = $value;
+                    
                 if ($column == 'version' || $column == 'name' || $column == 'preset') {
-                    $values[] = '`' . $column . "`='" . $this->db->escape($value) . "'";
+                    $values[] = '`' . $column . '`="' . $this->db->escape($value) . '"';
                 } else {
                     if ($column == 'settings' && !isset($value['enable'])) {
                         $value['enable'] = 0;
                     }
-                    $values[] = '`' . $column . "`='" . $this->db->escape(json_encode($value)) . "'";
+                    
+                    if(isset($column) && !empty($column) && ($column == "fields"))
+                    	$values[] = '`' . $column . "`='" . $this->db->escape(json_encode($value, JSON_UNESCAPED_UNICODE)) . "'";
+                    else
+                    	$values[] = '`' . $column . "`='" . $this->db->escape(json_encode($value)) . "'";
+                    
                 }
             }
             $values[] = "`preset`='0'";
             $values[] = "`version`='" . $this->version . "'";
-            $sql .= implode(',', $values);
 
-            $this->db->query($sql);
+			$isProfileExist = $this->isProfileExist($tempName);
+			if(isset($isProfileExist) && !empty($isProfileExist)) {
+	           if(!empty($tempName))
+	             	$this->deleteProfileFeed($tempName);
+	                
+	            $sql .= implode(',', $values);
+	                
+				// UPDATE FEED
+        		// $sql = 'UPDATE ' . DB_PREFIX . 'hj_any_feed_pro_feeds SET ' . implode(',', $values) . ' WHERE ' . DB_PREFIX . 'hj_any_feed_pro_feeds.`name` = "' . $tempName . '"';
+			}else {
+				// INSERT FEED
+				$sql .= implode(',', $values);
+			}
+			
+			if($tempName == "shopzilla_4") {
+				// echo $sql; die;
+			}
+			
+			
+			$this->db->query($sql);
+
+/*
+            if(!empty($tempName))
+                $this->deleteProfileFeed($tempName);
+                */
         }
     }
 
@@ -159,6 +204,10 @@ class ModelFeedAnyFeedPro extends Model {
     }
 
     public function isProfileExist($profile) {
+        $profile = trim($profile);
+        $profile = str_replace(" ", "_", $profile);
+        $profile = preg_replace('/[^a-zA-Z0-9]+/', '_', $profile);
+        
         $query = $this->db->query("SELECT DISTINCT * FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE `name` = '" . $this->db->escape($profile) . "';");
         return (isset($query->row['id'])) ? $query->rows : array();
     }
@@ -171,6 +220,10 @@ class ModelFeedAnyFeedPro extends Model {
     public function getPresets() {
         $query = $this->db->query("SELECT DISTINCT * FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE `preset` = 1 ORDER BY id DESC;");
         return (isset($query->row['id'])) ? $query->rows : array();
+    }
+
+    public function deleteProfileFeed($profile) {
+        $this->db->query("DELETE FROM " . DB_PREFIX . "hj_any_feed_pro_feeds WHERE  `preset` = '0' AND `name` = '" . $this->db->escape($profile) . "'");
     }
 
     public function deleteProfile($profile) {
@@ -198,6 +251,8 @@ class ModelFeedAnyFeedPro extends Model {
             }
             $values[] = "`preset`='1'";
             $sql .= implode(',', $values);
+            $sql = str_replace("'s", "\'s", $sql);
+            
             $this->db->query($sql);
         };
     }

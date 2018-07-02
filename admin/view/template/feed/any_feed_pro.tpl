@@ -5,7 +5,6 @@
 #################################################################################
 */
 ?>
-
 <style type="text/css">
     .name-label {
         font-size: 22px;
@@ -67,14 +66,14 @@
 		<?php } ?>
 	</ul>
 	<div class="buttons pull-right">
-	    <button id="create-feed" class="button btn btn-primary"><?php echo $entry_add_feed; ?></button>
+	    <button class="button btn btn-primary" onclick="window.location.href = 'index.php?route=feed/any_feed_pro/createFeed&token=<?php echo $token ?>'"><?php echo $entry_add_feed; ?></button>
             <button class="button btn btn-primary" onclick="window.location.href = 'index.php?route=feed/any_feed_pro/manageProfile&token=<?php echo $token ?>'" style="background-color: coral; border-color: coral;"><?php echo "Manage Profiles"; ?></button>
 	    <button onclick="return saveFeedsAjax();" class="button btn btn-success"><?php echo $button_save; ?></button>
 	    <button onclick="location = '<?php echo $cancel; ?>';" class="button btn btn-danger"><?php echo $button_cancel; ?></button>
 	</div>
 </div>
 </div>
-  <div class="container-fluid">
+  <div class="container-fluid"window>
 <?php if ($error_warning) { ?>
 <div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> <?php echo $error_warning; ?>
     <button type="button" class="close" data-dismiss="alert">&times;</button>
@@ -413,7 +412,7 @@ function saveFeedsAjax() {
 			$('input[sort_order]').remove();
       $('#ajaxSpinner').hide();
       $('#ajaxFade').hide();
-      window.location.href = 'index.php?route=feed/any_feed_pro&token=<?php echo $token ?>';
+      // window.location.href = 'index.php?route=feed/any_feed_pro&token=<?php echo $token ?>';
     },
 	});
 }
@@ -857,8 +856,9 @@ $(document).ready(function() {
 
 		var copyurl = 'index.php?route=feed/any_feed_pro/duplicate&name=' + encodedName(name) + '&token=<?php echo $token ?>';
 		var feedSettingurl = 'index.php?route=feed/any_feed_pro/editFeedSettings&name=' + encodedName(name) + '&token=<?php echo $token ?>';
+		var feedDelete = 'index.php?route=feed/any_feed_pro/deleteFeed&name=' + encodedName(name) + '&token=<?php echo $token ?>';
 
-		html = '<button class="accordiona"><span class="name-label"><i class="fa fa-rss-square" aria-hidden="true"></i>&nbsp;&nbsp;' + prettyName(name) + '</span></button><div class="field_content panela" style="width: 100%;">';
+		html = '<button class="accordiona" id="accordion_' + name + '" onclick="manageAccordian(\'' + name + '\')"><span class="name-label"><i class="fa fa-rss-square" aria-hidden="true"></i>&nbsp;&nbsp;' + prettyName(name) + '</span></button><div id="feed_div_' + name + '" class="field_content panela" style="width: 100%;">';
 			addedDefaults = false;
 			 $.each(data, function(key, val) {
 					switch(key) {
@@ -874,8 +874,9 @@ $(document).ready(function() {
 							html += "<i class='fa fa-external-link fa-lg'></i> Export Feed</a>";
 							html += "<span class='get_feed_modal feed_header_buttons' name='feed_name_replace[settings][feed_get_url]' data-url='" + url + "'>";
 							html += "<i class='fa fa-external-link fa-lg'></i> Get Feed URL </span>";
-							html += '<span class="remove feed_header_buttons"><i class="fa fa-trash-o fa-lg"></i></span><input class="replace_me" type="hidden" name="feed_name_replace[name]" value="' + encodedName(name) + '"/>';
-							html += "<a class='btn-save-feed feed_header_buttons'><i class='fa fa-save fa-lg'></i></a>";
+							html += '<a class="feed_header_buttons" href="javascript: void(0)" onclick=\'deleteFeed("'+ feedDelete +'")\'><span><i class="fa fa-trash-o fa-lg"></i> Delete Feed </span><input class="replace_me" type="hidden" name="feed_name_replace[name]" value="' + encodedName(name) + '"/>';
+							// html += '<span class="remove feed_header_buttons"><i class="fa fa-trash-o fa-lg"></i></span><input class="replace_me" type="hidden" name="feed_name_replace[name]" value="' + encodedName(name) + '"/>';
+							html += "<a class='btn-save-feed feed_header_buttons'><i class='fa fa-save fa-lg'></i> Save</a>";
 
 							html += '</div>';
 
@@ -1373,26 +1374,16 @@ $(document).ready(function() {
         window.location.href = url;
     }
     
-    $(document).ready(function() { 
-      $(window).load(function() { 
-            // code here
-           setTimeout(function() {
-               var acc = document.getElementsByClassName("accordiona");
-               var i;
-               for (i = 0; i < acc.length; i++) {
-                   acc[i].addEventListener("click", function() {
-                       this.classList.toggle("activea");
-                       var panel = this.nextElementSibling;
-                       if (panel.style.display === "block") {
-                           panel.style.display = "none";
-                       } else {
-                           panel.style.display = "block";
-                       }               
-                   });
-               }
-           }, 1000);
-      });
-    });
+    function manageAccordian(name) {
+    	var nameObj = document.getElementById("feed_div_" + name);
+    	var accordianObj = document.getElementById("accordion_" + name);
+    	accordianObj.classList.toggle("activea");
+       	if (nameObj.style.display === "block") {
+        	   nameObj.style.display = "none";
+    	 } else {
+        	   nameObj.style.display = "block";
+       	}    
+    }
     
     function selectStoreCheckbox(id) {
         if($('#checkbox_store_' + id).prop('checked')){
@@ -1403,25 +1394,11 @@ $(document).ready(function() {
         }
     }
     
-    /*
-    $(document).load(function () {
-        // code here
-       // setTimeout(function() {
-           var acc = document.getElementsByClassName("accordiona");
-           var i;
-           for (i = 0; i < acc.length; i++) {
-               acc[i].addEventListener("click", function() {
-                   this.classList.toggle("activea");
-                   var panel = this.nextElementSibling;
-                   if (panel.style.display === "block") {
-                       panel.style.display = "none";
-                   } else {
-                       panel.style.display = "block";
-                   }               
-               });
-           }
-       // }, 2000);
-    });
-    */
+    
+    function deleteFeed(url) {
+        if(confirm("Are you sure ?")) {
+            window.location.href = url;
+        }
+    }
      
 </script>
